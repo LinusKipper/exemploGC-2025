@@ -1,0 +1,10 @@
+int r;
+
+void main() {
+  r = soma(2);
+  write("Resultado: ", r);
+}
+
+int soma(int a) {
+  return a + 1;
+}

@@ -1,0 +1,31 @@
+public interface ParserTokens {
+public final static short ID=257;
+public final static short INT=258;
+public final static short FLOAT=259;
+public final static short BOOL=260;
+public final static short NUM=261;
+public final static short LIT=262;
+public final static short VOID=263;
+public final static short MAIN=264;
+public final static short READ=265;
+public final static short WRITE=266;
+public final static short IF=267;
+public final static short ELSE=268;
+public final static short INC=269;
+public final static short BREAK=270;
+public final static short CONTINUE=271;
+public final static short WHILE=272;
+public final static short TRUE=273;
+public final static short FALSE=274;
+public final static short DO=275;
+public final static short EQ=276;
+public final static short LEQ=277;
+public final static short GEQ=278;
+public final static short NEQ=279;
+public final static short DEC=280;
+public final static short AND=281;
+public final static short OR=282;
+public final static short PLUSE=283;
+public final static short FOR=284;
+public final static short RETURN=285;
+}
