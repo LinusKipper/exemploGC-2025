@@ -49,7 +49,9 @@ NL  = \n | \r | \r\n
 "{" |
 "}" |
 "," |
-"\[" | 
+"\[" |
+"?" |
+ ":"  |
 "\]"    { return (int) yycharat(0); }
 
 {NUM}  { yyparser.yylval = new ParserVal(yytext()); 
@@ -59,7 +61,9 @@ NL  = \n | \r | \r\n
 "<="   {  return Parser.LEQ; }
 ">="   {  return Parser.GEQ; }
 "!="   {  return Parser.NEQ; }
-
+"++"   {  return Parser.INC;}
+"--"   { return Parser.DEC; }
+"+="   { return Parser.PLUSE; }
 "&&"   { return Parser.AND; }
 "||"   {  return Parser.OR; }
 
@@ -67,16 +71,19 @@ int    { return Parser.INT;     }
 float  { return Parser.FLOAT;   }
 bool   { return Parser.BOOL; }
 void   { return Parser.VOID; }
+return  { return Parser.RETURN; }
 main   { return Parser.MAIN; }
 write   { return Parser.WRITE; }
 read   { return Parser.READ; }
 while   { return Parser.WHILE; }
+do { return Parser.DO; }
 if   { return Parser.IF; }
 else   { return Parser.ELSE; }
 true   { return Parser.TRUE; }
 false   { return Parser.FALSE; }
-
-
+continue  { return Parser.CONTINUE; }
+break  { return Parser.BREAK; }
+for { return Parser.FOR; }
 
 [a-zA-Z]+([a-zA-Z0-9]+)? { yyparser.yylval = new ParserVal(yytext());
             return Parser.ID; }

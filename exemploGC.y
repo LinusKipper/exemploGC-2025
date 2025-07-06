@@ -6,16 +6,18 @@
 %}
  
 
-%token ID, INT, FLOAT, BOOL, NUM, LIT, VOID, MAIN, READ, WRITE, IF, ELSE
-%token WHILE,TRUE, FALSE, IF, ELSE
-%token EQ, LEQ, GEQ, NEQ 
-%token AND, OR
+%token ID, INT, FLOAT, BOOL, NUM, LIT, VOID, MAIN, READ, WRITE, IF, ELSE, INC, BREAK, CONTINUE
+%token WHILE,TRUE, FALSE, DO
+%token EQ, LEQ, GEQ, NEQ, DEC 
+%token AND, OR , PLUSE, FOR
+%token RETURN
 
-%right '='
+%right '=' PLUSE
+%left '?' ':'
 %left OR
 %left AND
 %left  '>' '<' EQ LEQ GEQ NEQ
-%left '+' '-'
+%left '+' '-' 
 %left '*' '/' '%'
 %left '!' 
 
@@ -24,22 +26,75 @@
 %type <sval> NUM
 %type <ival> type
 
-
 %%
 
-prog : { geraInicio(); } dList mainF { geraAreaDados(); geraAreaLiterais(); } ;
+prog : { geraInicio(); } dList blocoFuncoes { geraAreaDados(); geraAreaLiterais(); } ;
+
+blocoFuncoes : blocoFuncoes itemFuncao | itemFuncao ;
+
+itemFuncao : funcDecl | mainF ;
 
 mainF : VOID MAIN '(' ')'   { System.out.println("_start:"); }
         '{' lcmd  { geraFinal(); } '}'
          ; 
 
 dList : decl dList | ;
+fList : fList funcDecl | ;
 
 decl : type ID ';' {  TS_entry nodo = ts.pesquisa($2);
     	                if (nodo != null) 
                             yyerror("(sem) variavel >" + $2 + "< jah declarada");
                         else ts.insert(new TS_entry($2, $1)); }
+	| type ID '[' NUM ']' ';' {
+          int tamanho = Integer.parseInt($4);
+          TS_entry nodo = ts.pesquisa($2);
+          if (nodo != null)
+              yyerror("(sem) array >" + $2 + "< jah declarado");
+          else {
+              ts.insert(new TS_entry($2, $1, tamanho, $1));
+              System.out.println("\t.comm _" + $2 + ", " + (tamanho * 4) + ", 4");
+          }
+     }
       ;
+
+paramList 
+    : paramList ',' type ID {
+        TS_entry p = new TS_entry($4, $3);
+        p.setParametro(true);
+        p.setDeslocamento(proxDeslocamento++);
+        ts.insert(p);
+    }
+    | type ID {
+        TS_entry p = new TS_entry($2, $1);
+        p.setParametro(true);
+        p.setDeslocamento(proxDeslocamento++);
+        ts.insert(p);
+    }
+    | /* vazio */ 
+
+argList : argList ',' exp
+        | exp
+        | /* vazio */
+        ;
+
+funcDecl : type ID '(' paramList ')' '{'
+              { 
+				proxDeslocamento = 1;
+				System.out.println("_" + $2 + ":");
+				System.out.println("\tPUSH %EBP");
+				System.out.println("\tMOVL %ESP, %EBP");
+				ts.beginScope();
+              }
+              dList lcmd 
+              {
+				if (!retornou) {
+				System.out.println("\tPOP %EBP");
+				System.out.println("\tRET");
+				}
+				retornou = false; 
+              }
+           '}'
+         ;
 
 type : INT    { $$ = INT; }
      | FLOAT  { $$ = FLOAT; }
@@ -50,12 +105,8 @@ lcmd : lcmd cmd
 	   |
 	   ;
 	   
-cmd :  ID '=' exp	';' {  System.out.println("\tPOPL %EDX");
-  						   System.out.println("\tMOVL %EDX, _"+$1);
-					     }
-			| '{' lcmd '}' { System.out.println("\t\t# terminou o bloco..."); }
-					     
-					       
+cmd :  '{' lcmd '}' { System.out.println("\t\t# terminou o bloco..."); }
+			| exp ';'	{System.out.println("\tPOPL %EAX");}	     	       
       | WRITE '(' LIT ')' ';' { strTab.add($3);
                                 System.out.println("\tMOVL $_str_"+strCount+"Len, %EDX"); 
 				System.out.println("\tMOVL $_str_"+strCount+", %ECX"); 
@@ -78,6 +129,12 @@ cmd :  ID '=' exp	';' {  System.out.println("\tPOPL %EDX");
 			 System.out.println("\tCALL _write");	
 			 System.out.println("\tCALL _writeln"); 
                         }
+	 | ID '[' exp ']' '=' exp ';' {
+			System.out.println("\t# Atribuição a array " + $1 + "[$3] = $6");
+			System.out.println("\tPOPL %EAX"); // valor
+			System.out.println("\tPOPL %EBX"); // índice
+			System.out.println("\tMOVL %EAX, _" + $1 + "(,%EBX,4)");
+		}
          
      | READ '(' ID ')' ';'								
 								{
@@ -89,18 +146,18 @@ cmd :  ID '=' exp	';' {  System.out.println("\tPOPL %EDX");
 								}
          
     | WHILE {
-					pRot.push(proxRot);  proxRot += 2;
-					System.out.printf("rot_%02d:\n",pRot.peek());
+					pRotRep.push(proxRot);  proxRot += 2;
+					System.out.printf("rot_%02d:\n",pRotRep.peek());
 				  } 
 			 '(' exp ')' {
 			 							System.out.println("\tPOPL %EAX   # desvia se falso...");
 											System.out.println("\tCMPL $0, %EAX");
-											System.out.printf("\tJE rot_%02d\n", (int)pRot.peek()+1);
+											System.out.printf("\tJE rot_%02d\n", (int)pRotRep.peek()+1);
 										} 
 				cmd		{
-				  		System.out.printf("\tJMP rot_%02d   # terminou cmd na linha de cima\n", pRot.peek());
-							System.out.printf("rot_%02d:\n",(int)pRot.peek()+1);
-							pRot.pop();
+				  		System.out.printf("\tJMP rot_%02d   # terminou cmd na linha de cima\n", pRotRep.peek());
+							System.out.printf("rot_%02d:\n",(int)pRotRep.peek()+1);
+							pRotRep.pop();
 							}  
 							
 			| IF '(' exp {	
@@ -116,7 +173,65 @@ cmd :  ID '=' exp	';' {  System.out.println("\tPOPL %EDX");
 											System.out.printf("rot_%02d:\n",pRot.peek()+1);
 											pRot.pop();
 										}
+		|
+		DO {
+			pRotRep.push(proxRot);  proxRot += 2;
+			System.out.printf("rot_%02d:\n",pRotRep.peek());
+		}
+		cmd WHILE '(' exp ')' ';' 
+					{
+			 		System.out.println("\tPOPL %EAX   # desvia se falso...");
+					System.out.println("\tCMPL $0, %EAX");
+					System.out.printf("\tJE rot_%02d\n", (int)pRotRep.peek()+1);
+					} 
+					{
+					System.out.printf("\tJMP rot_%02d   # terminou cmd na linha de cima\n", pRotRep.peek());
+					System.out.printf("rot_%02d:\n",(int)pRotRep.peek()+1);
+					pRotRep.pop();
+					}
+
+			| CONTINUE ';' {	System.out.printf("\tJMP rot_%02d   # terminou cmd na linha de cima\n", pRotRep.peek());}
+			| BREAK ';' {System.out.printf("\tJMP rot_%02d   # terminou cmd na linha de cima\n", pRotRep.peek()+1);}
+			| FOR '(' expOpc ';'
+					{
+			  		pRotRep.push(proxRot);  proxRot += 4;
+						System.out.printf("rot_%02d:\n",pRotRep.peek()+3);
+						}
+					 expOpcL ';' {
+						System.out.println("\tPOPL %EAX   # desvia se falso...");
+					  System.out.println("\tCMPL $0, %EAX");
+					  System.out.printf("\tJE rot_%02d\n", (int)pRotRep.peek()+1);
+						System.out.printf("\tJMP rot_%02d \n", pRotRep.peek()+2);
+					
+						System.out.printf("rot_%02d:\n",pRotRep.peek());
+					 }
+	       expOpc ')'
+				  {	
+						System.out.printf("\tJMP rot_%02d \n", pRotRep.peek()+3);		
+						System.out.printf("rot_%02d:\n",pRotRep.peek()+2);} 
+				 cmd
+				 {				
+					System.out.printf("\tJMP rot_%02d \n", pRotRep.peek());		
+					  System.out.printf("rot_%02d:\n",pRotRep.peek()+1);
+				              pRotRep.pop();}
+				| RETURN NUM ';' {
+					retornou = true;
+					System.out.println("\tMOVL $" + $2 + ", %EAX");
+					System.out.println("\tPOP %EBP");
+					System.out.println("\tRET");
+				}
+				| RETURN exp ';' {
+					retornou = true;
+					// se a expressão já está em %EAX, não precisa desempilhar
+					System.out.println("\tPOP %EBP");
+					System.out.println("\tRET");
+				}
      ;
+		
+		expOpc : exp | ;
+		expOpcL : exp 
+					| { System.out.println("\tPUSHL $1"); } 
+					;  
      
      
 restoIf : ELSE  {
@@ -128,16 +243,24 @@ restoIf : ELSE  {
 							
 							
 		| {
-		    System.out.printf("\tJMP rot_%02d\n", pRot.peek()+1);
+		   System.out.printf("\tJMP rot_%02d\n", pRot.peek()+1);
 				System.out.printf("rot_%02d:\n",pRot.peek());
 				} 
-		;										
-
+		;						
 
 exp :  NUM  { System.out.println("\tPUSHL $"+$1); } 
     |  TRUE  { System.out.println("\tPUSHL $1"); } 
     |  FALSE  { System.out.println("\tPUSHL $0"); }      
- 		| ID   { System.out.println("\tPUSHL _"+$1); }
+ 	| ID {
+		TS_entry ent = ts.pesquisa($1);
+		if (ent != null && ent.isParametro()) {
+			int offset = 4 + ent.getDeslocamento() * 4;
+			System.out.println("\tMOVL " + offset + "(%EBP), %EAX");
+			System.out.println("\tPUSHL %EAX");
+		} else {
+			System.out.println("\tPUSHL _"+$1);
+		}
+	}
     | '(' exp	')' 
     | '!' exp       { gcExpNot(); }
      
@@ -156,9 +279,73 @@ exp :  NUM  { System.out.println("\tPUSHL $"+$1); }
 												
 		| exp OR exp		{ gcExpLog(OR); }											
 		| exp AND exp		{ gcExpLog(AND); }											
-		
-		;							
+		| ID '=' exp    {  System.out.println("\tPOPL %EDX");
+											System.out.println("\tMOVL %EDX, _"+$1);
+											System.out.println("\tPUSHL _"+$1);
+					     }
+		| ID INC { System.out.println("\tPUSHL _"+$1);
+							 System.out.println("\tPUSHL $1");
+							 System.out.println("\tPUSHL _"+$1);
+							 gcExpArit('+');
+							 System.out.println("\tPOPL %EDX");
+  						 System.out.println("\tMOVL %EDX, _"+$1);							
+								
+							 }
+							 
+		| INC ID { System.out.println("\tPUSHL _"+$2);
+							 System.out.println("\tPUSHL $1");
+							 gcExpArit('+');
+							 System.out.println("\tPOPL %EDX");
+  						 System.out.println("\tMOVL %EDX, _"+$2);
+							 System.out.println("\tPUSHL _"+$2);
+							 }
 
+		| ID DEC { System.out.println("\tPUSHL _"+$1);
+				System.out.println("\tPUSHL $1");
+				System.out.println("\tPUSHL _"+$1);
+				gcExpArit('-');
+				System.out.println("\tPOPL %EDX");
+				System.out.println("\tMOVL %EDX, _"+$1);
+			}
+
+		| DEC ID {
+				System.out.println("\tPUSHL _"+$2);
+				System.out.println("\tPUSHL $1");
+				gcExpArit('-');
+				System.out.println("\tPOPL %EDX");
+				System.out.println("\tMOVL %EDX, _"+$2);
+				System.out.println("\tPUSHL _"+$2);
+			}
+
+		| ID PLUSE exp { System.out.println("\tPUSHL _"+$1);
+								gcExpArit('+');
+								System.out.println("\tPOPL %EDX");
+								System.out.println("\tMOVL %EDX, _"+$1);
+								}
+		| exp '?' {	
+											pRot.push(proxRot);  proxRot += 2;
+											System.out.println("\tPOPL %EAX");
+											System.out.println("\tCMPL $0, %EAX");
+											System.out.printf("\tJE rot_%02d\n", pRot.peek());
+										}
+			 exp 
+			 { System.out.printf("\tJMP rot_%02d\n", pRot.peek()+1);
+											System.out.printf("rot_%02d:\n",pRot.peek());} 
+			':'	exp {
+											System.out.printf("rot_%02d:\n",pRot.peek()+1);
+											pRot.pop();
+											}
+		| ID '[' exp ']' {
+				System.out.println("\t# Acesso a array " + $1);
+				System.out.println("\tPOPL %EBX"); // índice
+				System.out.println("\tMOVL _" + $1 + "(,%EBX,4), %EAX");
+				System.out.println("\tPUSHL %EAX");
+				}
+		| ID '(' argList ')' {
+        		System.out.println("\tCALL _" + $1);
+        		System.out.println("\tPUSHL %EAX");
+    			}				
+		;							
 
 %%
 
@@ -170,11 +357,14 @@ exp :  NUM  { System.out.println("\tPUSHL $"+$1); }
   private ArrayList<String> strTab = new ArrayList<String>();
 
   private Stack<Integer> pRot = new Stack<Integer>();
+
+  private Stack<Integer> pRotRep = new Stack<Integer>();
   private int proxRot = 1;
 
+  private int proxDeslocamento = 1;
+  private boolean retornou = false;
 
   public static int ARRAY = 100;
-
 
   private int yylex () {
     int yyl_return = -1;
@@ -241,7 +431,6 @@ exp :  NUM  { System.out.println("\tPUSHL $"+$1); }
            		     System.out.println("\tMOVL %EDX, %EAX");
            		     break;
     		}
-   		System.out.println("\tPUSHL %EAX");
 		}
 
 	public void gcExpRel(int oprel) {
@@ -259,9 +448,6 @@ exp :  NUM  { System.out.println("\tPUSHL $"+$1); }
        case Parser.LEQ: System.out.println("\tSETLE %AL"); break;
        case Parser.NEQ: System.out.println("\tSETNE %AL"); break;
        }
-    
-    System.out.println("\tPUSHL %EAX");
-
 	}
 
 
@@ -281,15 +467,12 @@ exp :  NUM  { System.out.println("\tPUSHL $"+$1); }
     			case Parser.OR:  System.out.println("\tORL  %EDX, %EAX");  break;
     			case Parser.AND: System.out.println("\tANDL  %EDX, %EAX"); break;
        }
-
-    	System.out.println("\tPUSHL %EAX");
 	}
 
 	public void gcExpNot(){
 
   	 System.out.println("\tPOPL %EAX" );
  	   System.out.println("	\tNEGL %EAX" );
-  	 System.out.println("	\tPUSHL %EAX");
 	}
 
    private void geraInicio() {

@@ -11,7 +11,8 @@ public class TS_entry
    private int tipo;
    private int nElem;
    private int tipoBase;
-
+   private boolean isParametro = false;
+   private int deslocamento = -1;
 
    public TS_entry(String umId, int umTipo, int ne, int umTBase) {
       id = umId;
@@ -41,11 +42,25 @@ public class TS_entry
        return tipoBase; 
    }
 
+    public boolean isParametro() {
+    return isParametro;
+    }
+
+    public void setParametro(boolean isParametro) {
+        this.isParametro = isParametro;
+    }
+
+    public int getDeslocamento() {
+        return deslocamento;
+    }
+
+    public void setDeslocamento(int deslocamento) {
+        this.deslocamento = deslocamento;
+    }
    
-   public String toString() {
-       String aux = (nElem != -1) ? "\t array(" + nElem + "): "+tipoBase : "";
-       return "Id: " + id + "\t tipo: " + tipo + aux;
-   }
-
-
+    public String toString() {
+        String aux = (nElem != -1) ? "\t array(" + nElem + "): " + tipoBase : "";
+        String tipoEntry = isParametro ? "\t(parâmetro @ EBP+" + (4 + deslocamento * 4) + ")" : "";
+        return "Id: " + id + "\t tipo: " + tipo + aux + tipoEntry;
+    }
 }

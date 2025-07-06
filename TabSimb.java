@@ -1,47 +1,53 @@
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.*;
 
+public class TabSimb {
+    private Stack<Map<String, TS_entry>> escopos;
 
-public class TabSimb
-{
-    private ArrayList<TS_entry> lista;
-    
-    public TabSimb( )
-    {
-        lista = new ArrayList<TS_entry>();
+    public TabSimb() {
+        escopos = new Stack<>();
+        beginScope(); // escopo global inicial
     }
-    
-    public void insert( TS_entry nodo ) {
-      lista.add(nodo);
-    }    
-    
+
+    public void beginScope() {
+        escopos.push(new HashMap<>());
+    }
+
+    public void endScope() {
+        if (!escopos.isEmpty()) {
+            escopos.pop();
+        } else {
+            System.err.println("Erro: tentativa de sair de escopo inexistente.");
+        }
+    }
+
+    public void insert(TS_entry nodo) {
+        escopos.peek().put(nodo.getId(), nodo);
+    }
+
+    public TS_entry pesquisa(String id) {
+        for (int i = escopos.size() - 1; i >= 0; i--) {
+            TS_entry ent = escopos.get(i).get(id);
+            if (ent != null) return ent;
+        }
+        return null;
+    }
+
     public void listar() {
-      int cont = 0;  
-      System.out.println("\n\n# Listagem da tabela de simbolos:\n");
-      for (TS_entry nodo : lista) {
-          System.out.println("# " + nodo);
-      }
-    }
-      
-    public TS_entry pesquisa(String umId) {
-      for (TS_entry nodo : lista) {
-          if (nodo.getId().equals(umId)) {
-	      return nodo;
+        System.out.println("\n\n# Listagem da tabela de símbolos:");
+        for (int i = 0; i < escopos.size(); i++) {
+            System.out.println("Escopo " + i + ":");
+            for (TS_entry e : escopos.get(i).values()) {
+                System.out.println("  " + e);
             }
-      }
-      return null;
+        }
     }
 
-	public void geraGlobais() {
-          // assume que todas variáveis são globais e inteiras.
-	      for (TS_entry nodo : lista) {
-	            	System.out.println("_"+nodo.getId()+":"+"	.zero 4");
-	            }
-	      }
-	     
+    public void geraGlobais() {
+        if (escopos.isEmpty()) return;
 
-
+        for (TS_entry nodo : escopos.firstElement().values()) {
+            // assume que todas as globais são inteiras
+            System.out.println("_" + nodo.getId() + ":" + "\t.zero 4");
+        }
+    }
 }
-
-
-
